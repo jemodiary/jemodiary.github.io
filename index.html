@@ -134,6 +134,13 @@
   .lightbox select { flex: 1; background: var(--surface2); color: var(--text); border: 0; border-radius: 10px; padding: 10px; }
   .lightbox .close { position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 12px; }
 
+  .update { position: fixed; left: 16px; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 15;
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; text-align: left;
+    background: var(--grad); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.5); max-width: 520px; margin: 0 auto; }
+  .update img { width: 34px; height: 34px; flex: none; }
+  .update span { flex: 1; font-weight: 700; font-size: 15px; }
+  .update small { display: block; font-weight: 400; font-size: 12px; opacity: .85; }
+  .update b { background: #fff; color: #3a2a7a; border-radius: 999px; padding: 8px 14px; font-size: 14px; }
   .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 40;
     background: var(--surface2); padding: 10px 16px; border-radius: 12px; font-size: 14px; max-width: calc(100% - 32px); }
 

@@ -263,6 +263,7 @@ function menu() {
     <button class="row" data-m="event"><span class="ic">＋</span><span>New event</span></button>
     <button class="row" data-m="demo"><span class="ic">★</span><span>Demo data<small>A sample week to try it out</small></span></button>
     <button class="row" data-m="feedback"><span class="ic">✉</span><span>Send feedback<small>Tell us what worked and what didn't</small></span></button>
+    <button class="row" data-m="reload"><span class="ic">↻</span><span>Reload app<small>Version ${esc(loadedVersion || "—")}</small></span></button>
     <button class="row danger" data-m="clear"><span class="ic">✕</span><span>Delete everything<small>Removes all events and photos from this device</small></span></button>`,
   (e, el) => {
     const b = e.target.closest("[data-m]");
@@ -563,6 +564,7 @@ async function act(a) {
   else if (a === "demo") await demo();
   else if (a === "menu") menu();
   else if (a === "feedback") feedback();
+  else if (a === "reload") reloadApp();
   else if (a === "clear") {
     if (!confirm("Delete all events and photos from this device?")) return;
     await clear("events"); await clear("photos");
@@ -610,6 +612,34 @@ function toast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.remove(), 3500);
 }
+
+// ---------- updates ----------
+// version.json changes with every publish (a git hook writes it). The version seen at start is the one running;
+// a different one later means a new version is out, so we offer a reload. An iPhone home-screen app can stay open
+// for days, hence the check on return and every 5 minutes.
+let loadedVersion = null;
+async function checkVersion() {
+  try {
+    const v = (await (await fetch("version.json", { cache: "no-store" })).json()).v;
+    if (!loadedVersion) loadedVersion = v;
+    else if (v !== loadedVersion) showUpdate();
+  } catch (e) {}
+}
+function showUpdate() {
+  if ($(".update")) return;
+  const b = document.createElement("button");
+  b.className = "update";
+  b.innerHTML = `<img src="logo.png" alt=""><span>New version of JeMo Diary<small>Your events, photos and notes stay</small></span><b>Reload</b>`;
+  b.addEventListener("click", reloadApp);
+  document.body.appendChild(b);
+}
+async function reloadApp() {
+  try { const r = await navigator.serviceWorker.getRegistration(); if (r) await r.update(); } catch (e) {}
+  location.reload();
+}
+checkVersion();
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkVersion(); });
+setInterval(checkVersion, 5 * 60 * 1000);
 
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 load().catch((e) => { $("#main").innerHTML = `<div class="empty">This browser can't store data here (${esc(e.message || e)}). Try Safari or Chrome outside private mode.</div>`; });
