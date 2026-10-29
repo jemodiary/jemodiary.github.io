@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#000000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Photo Cal">
-<title>Photo Calendar</title>
+<meta name="apple-mobile-web-app-title" content="Jemo Diary">
+<title>Jemo Diary</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="logo.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <style>
   :root {
@@ -27,15 +27,19 @@
 
   header.top { position: sticky; top: 0; z-index: 5; background: rgba(0,0,0,.86); backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px); display: flex; align-items: center; gap: 8px; padding: 10px 16px; }
-  .pill { background: var(--surface); border-radius: 999px; height: 44px; min-width: 44px; padding: 0 14px;
+  .pill { background: var(--surface); border-radius: 999px; height: 40px; min-width: 40px; padding: 0 14px;
     display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-  .top h1 { font-size: 22px; font-weight: 700; margin: 0 auto 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .top .nav { padding: 0 12px; font-size: 22px; }
+  .top .logo { width: 36px; height: 36px; flex: none; }
+  .top h1 { font-size: 20px; font-weight: 700; margin: 0 auto 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top .nav { padding: 0 10px; font-size: 22px; }
   .plus { font-size: 26px; background: var(--grad); }
 
   main { padding: 0 0 24px; }
   .empty { margin: 48px 24px; text-align: center; color: var(--muted); line-height: 1.5; }
   .empty .big { font-size: 20px; color: var(--text); font-weight: 600; margin-bottom: 8px; }
+  .empty .hero { width: 120px; height: 120px; display: block; margin: 0 auto 10px; }
+  .empty .name { font-size: 30px; font-weight: 800; color: var(--text); margin-bottom: 18px; letter-spacing: -.01em; }
+  .empty .faint { width: 56px; height: 56px; opacity: .35; display: block; margin: 0 auto 10px; }
   .empty button { margin: 6px; }
   .btn { background: var(--surface2); color: var(--text); border-radius: 12px; padding: 12px 16px; font-weight: 600; }
   .btn.primary { background: var(--grad); }
@@ -83,6 +87,12 @@
   .ev .acts { display: flex; gap: 8px; margin: 8px 0 10px; }
   .ev .acts button { font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--surface); }
   .ev .acts .rep { background: var(--grad); }
+  .ev .note { font-size: 15px; line-height: 1.45; color: #d1d1d6; white-space: pre-wrap; margin: 2px 0 8px; padding: 8px 10px; background: var(--surface); border-radius: 10px; }
+  .mic { display: inline-flex; align-items: center; gap: 8px; background: var(--surface2); border-radius: 999px; padding: 10px 16px; font-weight: 600; margin-top: 10px; }
+  .mic .dot { width: 10px; height: 10px; border-radius: 99px; background: var(--today); }
+  .mic.on { background: var(--today); color: #fff; }
+  .mic.on .dot { background: #fff; animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
   .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; border-top: 1px solid var(--line); padding-top: 8px; }
   .grid3 button { padding: 0; }
   .grid3 img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
@@ -99,7 +109,9 @@
   .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
   .sheet { background: var(--surface); width: 100%; max-width: 520px; border-radius: 18px 18px 0 0;
     padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); max-height: 92dvh; overflow: auto; }
-  .sheet h2 { margin: 0 0 12px; font-size: 19px; }
+  .sheet h2 { margin: 0 0 12px; font-size: 19px; display: flex; align-items: center; gap: 10px; }
+  .sheet h2 img { width: 30px; height: 30px; }
+  .sheet textarea { width: 100%; min-height: 140px; background: var(--surface2); color: var(--text); border: 0; border-radius: 10px; padding: 12px; font: inherit; font-size: 16px; resize: vertical; }
   .sheet .row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px 4px; border-bottom: 1px solid var(--line); font-size: 16px; }
   .sheet .row small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
   .sheet .row .ic { width: 34px; height: 34px; border-radius: 9px; background: var(--grad); display: grid; place-items: center; flex: none; }
@@ -130,8 +142,11 @@
   .report .tools button { background: #fff; border-radius: 10px; padding: 10px 12px; font-weight: 600; color: #111; white-space: nowrap; font-size: 15px; }
   .report .tools .print { background: var(--grad); color: #fff; }
   .page { background: #fff; max-width: 780px; margin: 0 auto 32px; padding: 36px 32px; }
-  .page .brand { display: flex; align-items: center; gap: 8px; color: #6a3fd0; font-weight: 700; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
-  .page .brand img { width: 22px; height: 22px; }
+  .page .brand { display: flex; align-items: center; gap: 10px; color: #6a3fd0; font-weight: 800; font-size: 18px; }
+  .page .brand small { display: block; color: #8e8e93; font-weight: 600; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
+  .page .brand img { width: 46px; height: 46px; }
+  .page .mic { background: #f0eef8; color: #3a2a7a; margin: -10px 0 20px; }
+  .page .mic.on { background: var(--today); color: #fff; }
   .page h1 { font-size: 28px; margin: 14px 0 6px; }
   .page .facts { color: #444; font-size: 15px; line-height: 1.6; margin-bottom: 20px; }
   .page .facts b { color: #111; }
@@ -140,7 +155,8 @@
   .page figure { margin: 0; break-inside: avoid; }
   .page figure img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; border-radius: 4px; }
   .page figcaption { font-size: 12px; color: #666; margin-top: 4px; }
-  .page footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #ddd; font-size: 12px; color: #888; }
+  .page footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #ddd; font-size: 12px; color: #888; display: flex; align-items: center; gap: 8px; }
+  .page footer img { width: 22px; height: 22px; }
 
   @media print {
     @page { margin: 14mm; }
@@ -151,11 +167,13 @@
     .page { padding: 0; margin: 0; max-width: none; }
     .page .notes { border: 0; padding: 0; resize: none; }
     .page .notes:placeholder-shown { display: none; }
+    .page .mic { display: none; }
   }
 </style>
 </head>
 <body>
 <header class="top">
+  <img class="logo" src="logo.png" alt="Jemo Diary">
   <button class="pill nav" data-act="prev" aria-label="Previous">‹</button>
   <h1 id="title"></h1>
   <button class="pill nav" data-act="next" aria-label="Next">›</button>

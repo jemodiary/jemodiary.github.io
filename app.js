@@ -1,4 +1,4 @@
-// Photo Calendar — web MVP. Everything stays on the device (IndexedDB); nothing is uploaded.
+// Jemo Diary — web MVP. Everything stays on the device (IndexedDB); nothing is uploaded.
 const { parseIcs, exifTime, matchPhotos, dayKey, MIN, DAY } = window.Core;
 
 const S = { view: "day", cursor: startOfDay(Date.now()), events: [], photos: [], match: new Map() };
@@ -91,6 +91,8 @@ function weekTitle(t) {
 
 function emptyHtml() {
   return `<div class="empty">
+    <img class="hero" src="logo.png" alt="">
+    <div class="name">Jemo Diary</div>
     <div class="big">Your calendar, with the photos you took there</div>
     Import your calendar (.ics) and add photos — each photo lands under the event it was taken at.<br><br>
     <button class="btn primary" data-act="ics">Import calendar</button>
@@ -165,8 +167,10 @@ function dayHtml(t) {
         ${e.location || !e.allDay ? `<div class="loc">${e.allDay ? "" : fmtTime(e.start) + " – " + fmtTime(e.end)}${e.location ? " · " + esc(e.location) : ""}</div>` : ""}
         <div class="acts">
           ${ph.length ? `<button class="rep" data-report="${esc(e.id)}">Report · ${ph.length} photo${ph.length > 1 ? "s" : ""}</button>` : ""}
+          <button data-note="${esc(e.id)}">${e.note ? "Edit note" : "🎙 Add note"}</button>
           <button data-delev="${esc(e.id)}">Remove</button>
         </div>
+        ${e.note ? `<div class="note">${esc(e.note)}</div>` : ""}
         ${ph.length ? `<div class="grid3">${ph.map((p) => `<button data-photo="${p.id}"><img src="${thumb(p)}" alt="" loading="lazy"></button>`).join("")}</div>`
           : `<div class="nophotos">No photos taken during this event</div>`}
       </div></div>`;
@@ -175,7 +179,7 @@ function dayHtml(t) {
     list += `<div class="ev"><div class="time"></div><div><h3>Other photos</h3><div class="loc">Taken outside any event</div>
       <div class="grid3">${loose.map((p) => `<button data-photo="${p.id}"><img src="${thumb(p)}" alt="" loading="lazy"></button>`).join("")}</div></div></div>`;
   }
-  if (!list) list = `<div class="empty">Nothing on this day.</div>`;
+  if (!list) list = `<div class="empty"><img class="faint" src="logo.png" alt="">Nothing on this day.</div>`;
   return `<div class="daybar">${bar}</div>
     <div class="daytitle">${fmtDay(t, { weekday: "long", day: "numeric", month: "short", year: "numeric" })}</div>${list}`;
 }
@@ -219,6 +223,8 @@ function resize(bmp, max) {
 async function importIcs(file) {
   const evs = parseIcs(await file.text());
   if (!evs.length) return toast("No events found in that file");
+  const notes = new Map(S.events.filter((e) => e.note).map((e) => [e.id, e.note]));
+  for (const e of evs) if (notes.has(e.id)) e.note = notes.get(e.id);
   await putAll("events", evs);
   await load();
   toast(`${evs.length} event${evs.length === 1 ? "" : "s"} imported`);
@@ -238,7 +244,7 @@ function sheet(html, onClick) {
 }
 
 function menu() {
-  sheet(`<h2>Add</h2>
+  sheet(`<h2><img src="logo.png" alt="">Add</h2>
     <button class="row" data-m="photos"><span class="ic">▦</span><span>Add photos<small>Each one is placed by the time it was taken</small></span></button>
     <button class="row" data-m="ics"><span class="ic">⇩</span><span>Import calendar (.ics)<small>Export from Google, Apple or Outlook Calendar</small></span></button>
     <button class="row" data-m="event"><span class="ic">＋</span><span>New event</span></button>
@@ -256,7 +262,7 @@ function menu() {
 function newEvent() {
   const d = new Date(S.cursor);
   const ds = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-  const el = sheet(`<h2>New event</h2>
+  const el = sheet(`<h2><img src="logo.png" alt="">New event</h2>
     <label>Title</label><input type="text" name="title" placeholder="e.g. Smart City Conference">
     <label>Place</label><input type="text" name="location" placeholder="optional">
     <label>Date</label><input type="date" name="date" value="${ds}">
@@ -338,22 +344,97 @@ function report(evId) {
   el.className = "report";
   el.innerHTML = `<div class="tools"><button data-x="close">‹ Back</button><span><button data-x="feedback">Feedback</button> <button class="print" data-x="print">Save PDF</button></span></div>
     <div class="page">
-      <div class="brand"><img src="icon.svg" alt="">Activity report</div>
+      <div class="brand"><img src="logo.png" alt=""><span>Jemo Diary<small>Activity report</small></span></div>
       <h1>${esc(e.title)}</h1>
       <div class="facts"><b>When:</b> ${when}${e.location ? `<br><b>Where:</b> ${esc(e.location)}` : ""}<br><b>Photos:</b> ${ph.length}</div>
-      <textarea class="notes" placeholder="Add a note (what happened, who attended)…"></textarea>
+      <textarea class="notes" placeholder="Add a note (what happened, who attended)…">${esc(e.note || "")}</textarea>
+      <button class="mic" data-x="mic"><span class="dot"></span><span>Speak the note</span></button>
       <div class="pgrid">${ph.map((p, i) => `<figure><img src="${full[i]}" alt=""><figcaption>${fmtTime(p.time)}</figcaption></figure>`).join("")}</div>
-      <footer>Made with Photo Calendar · ${fmtDay(Date.now(), { day: "numeric", month: "short", year: "numeric" })}</footer>
+      <footer><img src="logo.png" alt="">Made with Jemo Diary · ${fmtDay(Date.now(), { day: "numeric", month: "short", year: "numeric" })}</footer>
     </div>`;
+  const ta = el.querySelector(".notes");
+  ta.addEventListener("input", () => saveNote(e, ta.value));
   el.addEventListener("click", (ev) => {
     const x = ev.target.closest("[data-x]");
     if (!x) return;
+    if (x.dataset.x === "mic") return dictate(ta, x);
     if (x.dataset.x === "print") return window.print();
     if (x.dataset.x === "feedback") return feedback();
+    stopDictation();
     full.forEach((u) => URL.revokeObjectURL(u));
     el.remove();
+    render();
   });
   document.body.appendChild(el);
+}
+
+// ---------- notes ----------
+let noteTimer;
+function saveNote(ev, text) {
+  ev.note = text.trim();
+  if (!ev.note) delete ev.note;
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(() => putAll("events", [ev]), 400);
+}
+
+function noteSheet(evId) {
+  const ev = S.events.find((x) => x.id === evId);
+  if (!ev) return;
+  const el = sheet(`<h2><img src="logo.png" alt="">Note</h2>
+    <div style="color:var(--muted);margin:-6px 0 10px">${esc(ev.title)}</div>
+    <textarea placeholder="What happened, who was there, what was decided…">${esc(ev.note || "")}</textarea>
+    <button class="mic" data-x="mic"><span class="dot"></span><span>Speak</span></button>
+    <div class="end"><button class="btn" data-x="cancel">Cancel</button><button class="btn primary" data-x="save">Save</button></div>`,
+  async (e, el) => {
+    const x = e.target.closest("[data-x]");
+    if (!x) return;
+    const ta = el.querySelector("textarea");
+    if (x.dataset.x === "mic") return dictate(ta, x);
+    stopDictation();
+    if (x.dataset.x === "save") {
+      clearTimeout(noteTimer);
+      ev.note = ta.value.trim();
+      if (!ev.note) delete ev.note;
+      await putAll("events", [ev]);
+      render();
+    }
+    el.remove();
+  });
+}
+
+// Dictation through the browser's speech recognition (Chrome, Safari). Where it's missing — or blocked, as in
+// some iPhone home-screen apps — the keyboard's own microphone still works, so we point there.
+let rec = null;
+function stopDictation() { if (rec) { rec.onend = null; rec.stop(); rec = null; } document.querySelectorAll(".mic.on").forEach(micOff); }
+function micOff(btn) { btn.classList.remove("on"); btn.lastElementChild.textContent = btn.dataset.label || "Speak"; }
+function dictate(ta, btn) {
+  if (rec) return stopDictation();
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const keyboard = () => { ta.focus(); toast("Tap the 🎙 on your keyboard to dictate"); };
+  if (!SR) return keyboard();
+  btn.dataset.label = btn.lastElementChild.textContent;
+  rec = new SR();
+  rec.lang = navigator.language || "ro-RO";
+  rec.continuous = true;
+  rec.interimResults = false;
+  rec.onresult = (e) => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (!e.results[i].isFinal) continue;
+      const t = e.results[i][0].transcript.trim();
+      ta.value = (ta.value && !/\s$/.test(ta.value) ? ta.value + " " : ta.value) + t;
+      ta.dispatchEvent(new Event("input"));
+    }
+  };
+  rec.onerror = (e) => {
+    rec = null;
+    micOff(btn);
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") keyboard();
+    else if (e.error !== "no-speech" && e.error !== "aborted") toast("Dictation stopped (" + e.error + ")");
+  };
+  rec.onend = () => { rec = null; micOff(btn); };
+  try { rec.start(); } catch (err) { rec = null; return keyboard(); }
+  btn.classList.add("on");
+  btn.lastElementChild.textContent = "Listening… tap to stop";
 }
 
 // Phase-1 testing: an email with the questions that decide whether to build the native app.
@@ -377,7 +458,7 @@ function feedback() {
     `In the app: ${S.events.filter(mine).length} events, ${S.photos.filter(mine).length} photos of your own, ${reports} reports opened`,
     navigator.userAgent,
   ].join("\n");
-  location.href = "mailto:anastasescujessica@gmail.com?subject=" + encodeURIComponent("Photo Calendar — feedback") + "&body=" + encodeURIComponent(body);
+  location.href = "mailto:anastasescujessica@gmail.com?subject=" + encodeURIComponent("Jemo Diary — feedback") + "&body=" + encodeURIComponent(body);
 }
 
 // ---------- demo ----------
@@ -446,7 +527,7 @@ async function act(a) {
 }
 
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-act],[data-view],[data-day],[data-photo],[data-report],[data-delev]");
+  const t = e.target.closest("[data-act],[data-view],[data-day],[data-photo],[data-report],[data-delev],[data-note]");
   if (!t || t.closest(".sheet,.lightbox,.report")) return;
   if (t.dataset.act) return act(t.dataset.act);
   if (t.dataset.view) {
@@ -456,6 +537,7 @@ document.addEventListener("click", async (e) => {
   }
   if (t.dataset.photo) return lightbox(t.dataset.photo);
   if (t.dataset.report) return report(t.dataset.report);
+  if (t.dataset.note) return noteSheet(t.dataset.note);
   if (t.dataset.delev) {
     if (!confirm("Remove this event? Its photos stay.")) return;
     await del("events", t.dataset.delev);
