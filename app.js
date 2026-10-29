@@ -402,41 +402,61 @@ function noteSheet(evId) {
   });
 }
 
-// Dictation through the browser's speech recognition (Chrome, Safari). Where it's missing — or blocked, as in
-// some iPhone home-screen apps — the keyboard's own microphone still works, so we point there.
-let rec = null;
-function stopDictation() { if (rec) { rec.onend = null; rec.stop(); rec = null; } document.querySelectorAll(".mic.on").forEach(micOff); }
+// Dictation through the browser's speech recognition (Chrome, Safari). Text appears while you talk. Each phrase is
+// its own short session, restarted until you tap stop: continuous mode duplicates text on Android Chrome and cuts
+// out on iPhone. Where the API is missing or blocked, the keyboard's own microphone still works, so we point there.
+let dict = null;
 function micOff(btn) { btn.classList.remove("on"); btn.lastElementChild.textContent = btn.dataset.label || "Speak"; }
+function stopDictation() {
+  const d = dict;
+  dict = null;
+  if (d && d.rec) {
+    const r = d.rec;
+    r.onresult = r.onend = r.onerror = null; // nothing may write after stop
+    try { r.abort(); } catch (e) {}
+    d.ta.dispatchEvent(new Event("input"));
+  }
+  document.querySelectorAll(".mic.on").forEach(micOff);
+}
 function dictate(ta, btn) {
-  if (rec) return stopDictation();
+  if (dict) return stopDictation();
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const keyboard = () => { ta.focus(); toast("Tap the 🎙 on your keyboard to dictate"); };
   if (!SR) return keyboard();
   btn.dataset.label = btn.lastElementChild.textContent;
-  rec = new SR();
-  rec.lang = navigator.language || "ro-RO";
-  rec.continuous = true;
-  rec.interimResults = false;
-  rec.onresult = (e) => {
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (!e.results[i].isFinal) continue;
-      const t = e.results[i][0].transcript.trim();
-      ta.value = (ta.value && !/\s$/.test(ta.value) ? ta.value + " " : ta.value) + t;
-      ta.dispatchEvent(new Event("input"));
-    }
-  };
-  rec.onerror = (e) => {
-    rec = null;
-    micOff(btn);
-    if (e.error === "not-allowed" || e.error === "service-not-allowed") keyboard();
-    else if (e.error !== "no-speech" && e.error !== "aborted") toast("Dictation stopped (" + e.error + ")");
-  };
-  rec.onend = () => { rec = null; micOff(btn); };
-  try { rec.start(); } catch (err) { rec = null; return keyboard(); }
   btn.classList.add("on");
   btn.lastElementChild.textContent = "Listening… tap to stop";
+  dict = { ta, btn, base: ta.value, rec: null };
+  listen(SR, dict, keyboard);
 }
-
+function listen(SR, d, keyboard) {
+  const rec = new SR();
+  d.rec = rec;
+  rec.lang = navigator.language || "ro-RO";
+  rec.continuous = false;
+  rec.interimResults = true;
+  rec.onresult = (e) => {
+    let text = "";
+    for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
+    text = text.trim();
+    if (!text) return;
+    d.ta.value = d.base + (d.base && !/\s$/.test(d.base) ? " " : "") + text;
+    d.ta.scrollTop = d.ta.scrollHeight;
+    d.ta.dispatchEvent(new Event("input"));
+  };
+  rec.onerror = (e) => {
+    if (e.error === "no-speech" || e.error === "aborted") return; // onend restarts
+    stopDictation();
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") keyboard();
+    else toast("Dictation stopped (" + e.error + ")");
+  };
+  rec.onend = () => {
+    if (dict !== d) return;
+    d.base = d.ta.value;
+    listen(SR, d, keyboard);
+  };
+  try { rec.start(); } catch (err) { stopDictation(); keyboard(); }
+}
 // Phase-1 testing: an email with the questions that decide whether to build the native app.
 function feedback() {
   let reports = 0;
