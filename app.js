@@ -402,17 +402,30 @@ function noteSheet(evId) {
   });
 }
 
-// Dictation through the browser's speech recognition (Chrome, Safari). Text appears while you talk. Each phrase is
-// its own short session, restarted until you tap stop: continuous mode duplicates text on Android Chrome and cuts
-// out on iPhone. Where the API is missing or blocked, the keyboard's own microphone still works, so we point there.
+// Dictation. On iPhone/iPad the web speech API stays silent in home-screen apps ("Listening…", no text), so there
+// the button opens the keyboard and points to its microphone, which writes live and has its own stop.
+// Elsewhere: the browser's speech recognition, one short session per phrase, restarted until you tap stop
+// (continuous mode duplicates text on Android Chrome). If the microphone never starts, fall back to the keyboard.
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 let dict = null;
+function keyboardHint(ta) {
+  ta.focus();
+  let h = ta.previousElementSibling;
+  if (!h || !h.classList.contains("hint")) {
+    h = document.createElement("div");
+    h.className = "hint";
+    ta.before(h);
+    ta.addEventListener("blur", () => h.remove(), { once: true });
+  }
+  h.innerHTML = "🎙 Tap the <b>microphone on your keyboard</b> (bottom right) and speak — the text appears as you talk. Tap it again to stop.";
+}
 function micOff(btn) { btn.classList.remove("on"); btn.lastElementChild.textContent = btn.dataset.label || "Speak"; }
 function stopDictation() {
   const d = dict;
   dict = null;
   if (d && d.rec) {
     const r = d.rec;
-    r.onresult = r.onend = r.onerror = null; // nothing may write after stop
+    r.onresult = r.onend = r.onerror = r.onaudiostart = null; // nothing may write after stop
     try { r.abort(); } catch (e) {}
     d.ta.dispatchEvent(new Event("input"));
   }
@@ -421,13 +434,17 @@ function stopDictation() {
 function dictate(ta, btn) {
   if (dict) return stopDictation();
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const keyboard = () => { ta.focus(); toast("Tap the 🎙 on your keyboard to dictate"); };
-  if (!SR) return keyboard();
+  const keyboard = () => keyboardHint(ta);
+  if (IOS || !SR) return keyboard();
+  const old = ta.previousElementSibling;
+  if (old && old.classList.contains("hint")) old.remove();
   btn.dataset.label = btn.lastElementChild.textContent;
   btn.classList.add("on");
   btn.lastElementChild.textContent = "Listening… tap to stop";
-  dict = { ta, btn, base: ta.value, rec: null };
+  dict = { ta, btn, base: ta.value, rec: null, audio: false };
   listen(SR, dict, keyboard);
+  const d = dict;
+  setTimeout(() => { if (dict === d && !d.audio) { stopDictation(); keyboard(); } }, 4000);
 }
 function listen(SR, d, keyboard) {
   const rec = new SR();
@@ -435,6 +452,7 @@ function listen(SR, d, keyboard) {
   rec.lang = navigator.language || "ro-RO";
   rec.continuous = false;
   rec.interimResults = true;
+  rec.onaudiostart = () => { d.audio = true; };
   rec.onresult = (e) => {
     let text = "";
     for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
