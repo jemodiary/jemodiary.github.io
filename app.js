@@ -1,4 +1,4 @@
-// Jemo Diary — web MVP. Everything stays on the device (IndexedDB); nothing is uploaded.
+// JeMo Diary — web MVP. Everything stays on the device (IndexedDB); nothing is uploaded.
 const { parseIcs, exifTime, matchPhotos, dayKey, MIN, DAY } = window.Core;
 
 const S = { view: "day", cursor: startOfDay(Date.now()), events: [], photos: [], match: new Map() };
@@ -92,7 +92,7 @@ function weekTitle(t) {
 function emptyHtml() {
   return `<div class="empty">
     <img class="hero" src="logo.png" alt="">
-    <div class="name">Jemo Diary</div>
+    <div class="name">JeMo Diary</div>
     <div class="big">Your calendar, with the photos you took there</div>
     Import your calendar (.ics) and add photos — each photo lands under the event it was taken at.<br><br>
     <button class="btn primary" data-act="ics">Import calendar</button>
@@ -344,13 +344,13 @@ function report(evId) {
   el.className = "report";
   el.innerHTML = `<div class="tools"><button data-x="close">‹ Back</button><span><button data-x="feedback">Feedback</button> <button class="print" data-x="print">Save PDF</button></span></div>
     <div class="page">
-      <div class="brand"><img src="logo.png" alt=""><span>Jemo Diary<small>Activity report</small></span></div>
+      <div class="brand"><img src="logo.png" alt=""><span>JeMo Diary<small>Activity report</small></span></div>
       <h1>${esc(e.title)}</h1>
       <div class="facts"><b>When:</b> ${when}${e.location ? `<br><b>Where:</b> ${esc(e.location)}` : ""}<br><b>Photos:</b> ${ph.length}</div>
       <textarea class="notes" placeholder="Add a note (what happened, who attended)…">${esc(e.note || "")}</textarea>
       <button class="mic" data-x="mic"><span class="dot"></span><span>Speak the note</span></button>
       <div class="pgrid">${ph.map((p, i) => `<figure><img src="${full[i]}" alt=""><figcaption>${fmtTime(p.time)}</figcaption></figure>`).join("")}</div>
-      <footer><img src="logo.png" alt="">Made with Jemo Diary · ${fmtDay(Date.now(), { day: "numeric", month: "short", year: "numeric" })}</footer>
+      <footer><img src="logo.png" alt="">Made with JeMo Diary · ${fmtDay(Date.now(), { day: "numeric", month: "short", year: "numeric" })}</footer>
     </div>`;
   const ta = el.querySelector(".notes");
   ta.addEventListener("input", () => saveNote(e, ta.value));
@@ -458,7 +458,7 @@ function feedback() {
     `In the app: ${S.events.filter(mine).length} events, ${S.photos.filter(mine).length} photos of your own, ${reports} reports opened`,
     navigator.userAgent,
   ].join("\n");
-  location.href = "mailto:anastasescujessica@gmail.com?subject=" + encodeURIComponent("Jemo Diary — feedback") + "&body=" + encodeURIComponent(body);
+  location.href = "mailto:anastasescujessica@gmail.com?subject=" + encodeURIComponent("JeMo Diary — feedback") + "&body=" + encodeURIComponent(body);
 }
 
 // ---------- demo ----------

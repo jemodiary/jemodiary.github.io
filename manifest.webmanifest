@@ -1,6 +1,6 @@
 {
-  "name": "Jemo Diary",
-  "short_name": "Jemo Diary",
+  "name": "JeMo Diary",
+  "short_name": "JeMo Diary",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
