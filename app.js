@@ -65,9 +65,14 @@ function eventsOn(day) {
   const end = day + DAY;
   return S.events.filter((e) => e.start < end && e.end > day);
 }
+function photoDay(p) {
+  const ev = p.eventId && p.eventId !== "none" && S.events.find((e) => e.id === p.eventId);
+  if (ev && !(p.time >= ev.start && p.time < ev.end)) return dayKey(ev.start);
+  return dayKey(p.time);
+}
 function photosOn(day) {
   const k = dayKey(day);
-  return S.photos.filter((p) => dayKey(p.time) === k);
+  return S.photos.filter((p) => photoDay(p) === k);
 }
 function photosOf(ev) { return S.photos.filter((p) => S.match.get(p.id) === ev.id); }
 
@@ -167,12 +172,13 @@ function dayHtml(t) {
         ${e.location || !e.allDay ? `<div class="loc">${e.allDay ? "" : fmtTime(e.start) + " – " + fmtTime(e.end)}${e.location ? " · " + esc(e.location) : ""}</div>` : ""}
         <div class="acts">
           ${ph.length ? `<button class="rep" data-report="${esc(e.id)}">Report · ${ph.length} photo${ph.length > 1 ? "s" : ""}</button>` : ""}
+          <button data-addto="${esc(e.id)}">📷 Add photos</button>
           <button data-note="${esc(e.id)}">${e.note ? "Edit note" : "🎙 Add note"}</button>
           <button data-delev="${esc(e.id)}">Remove</button>
         </div>
         ${e.note ? `<div class="note">${esc(e.note)}</div>` : ""}
         ${ph.length ? `<div class="grid3">${ph.map((p) => `<button data-photo="${p.id}"><img src="${thumb(p)}" alt="" loading="lazy"></button>`).join("")}</div>`
-          : `<div class="nophotos">No photos taken during this event</div>`}
+          : `<button class="nophotos" data-addto="${esc(e.id)}">No photos yet · <b>📷 add them here</b></button>`}
       </div></div>`;
   }).join("");
   if (loose.length) {
@@ -185,12 +191,14 @@ function dayHtml(t) {
 }
 
 // ---------- adding things ----------
-async function addPhotos(files) {
-  const known = new Set(S.photos.map((p) => p.name + "|" + p.size));
-  const out = [];
+// evId: photos chosen from an event's own button go under that event, whatever time they were taken.
+async function addPhotos(files, evId) {
+  const known = new Map(S.photos.map((p) => [p.name + "|" + p.size, p]));
+  const out = [], moved = [];
   let skipped = 0, noDate = 0;
   for (const f of files) {
-    if (known.has(f.name + "|" + f.size)) continue;
+    const had = known.get(f.name + "|" + f.size);
+    if (had) { if (evId && had.eventId !== evId) { had.eventId = evId; moved.push(had); } continue; }
     let time = null;
     try { time = exifTime(await f.slice(0, 256 * 1024).arrayBuffer()); } catch (e) {}
     const fromFile = time == null;
@@ -201,12 +209,17 @@ async function addPhotos(files) {
       id: "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
       name: f.name, size: f.size, time, timeFrom: fromFile ? "file" : "exif",
       thumb: await resize(bmp, 360), full: await resize(bmp, 1600),
+      ...(evId ? { eventId: evId } : {}),
     });
     bmp.close && bmp.close();
   }
-  if (out.length) await putAll("photos", out);
+  if (out.length || moved.length) await putAll("photos", [...out, ...moved]);
   await load();
-  if (out.length) S.cursor = startOfDay(out[0].time), render();
+  const ev = evId && S.events.find((e) => e.id === evId);
+  if (ev) { S.cursor = startOfDay(ev.start); S.view = "day"; render(); }
+  else if (out.length) S.cursor = startOfDay(out[0].time), render();
+  const n = out.length + moved.length;
+  if (ev) return toast(`${n} photo${n === 1 ? "" : "s"} added to ${ev.title}` + (skipped ? ` · ${skipped} could not be read` : ""));
   toast(`${out.length} photo${out.length === 1 ? "" : "s"} added` +
     (noDate ? ` · ${noDate} without a camera date (used the file date)` : "") +
     (skipped ? ` · ${skipped} could not be read` : ""));
@@ -544,7 +557,7 @@ function demoImage(title, time, k) {
 
 // ---------- events ----------
 async function act(a) {
-  if (a === "photos") $("#pickPhotos").click();
+  if (a === "photos") { addTo = null; $("#pickPhotos").click(); }
   else if (a === "ics") $("#pickIcs").click();
   else if (a === "event") newEvent();
   else if (a === "demo") await demo();
@@ -565,7 +578,7 @@ async function act(a) {
 }
 
 document.addEventListener("click", async (e) => {
-  const t = e.target.closest("[data-act],[data-view],[data-day],[data-photo],[data-report],[data-delev],[data-note]");
+  const t = e.target.closest("[data-act],[data-view],[data-day],[data-photo],[data-report],[data-delev],[data-note],[data-addto]");
   if (!t || t.closest(".sheet,.lightbox,.report")) return;
   if (t.dataset.act) return act(t.dataset.act);
   if (t.dataset.view) {
@@ -576,6 +589,7 @@ document.addEventListener("click", async (e) => {
   if (t.dataset.photo) return lightbox(t.dataset.photo);
   if (t.dataset.report) return report(t.dataset.report);
   if (t.dataset.note) return noteSheet(t.dataset.note);
+  if (t.dataset.addto) { addTo = t.dataset.addto; return $("#pickPhotos").click(); }
   if (t.dataset.delev) {
     if (!confirm("Remove this event? Its photos stay.")) return;
     await del("events", t.dataset.delev);
@@ -584,7 +598,8 @@ document.addEventListener("click", async (e) => {
   if (t.dataset.day) { S.cursor = +t.dataset.day; S.view = "day"; render(); }
 });
 
-$("#pickPhotos").addEventListener("change", (e) => { const f = [...e.target.files]; e.target.value = ""; if (f.length) addPhotos(f); });
+let addTo = null; // event chosen with its own "Add photos" button
+$("#pickPhotos").addEventListener("change", (e) => { const f = [...e.target.files]; e.target.value = ""; if (f.length) addPhotos(f, addTo); addTo = null; });
 $("#pickIcs").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) importIcs(f); });
 
 let toastTimer;
