@@ -1,5 +1,5 @@
 // Offline shell: network first, cache as fallback, so a new version is picked up as soon as there's signal.
-const CACHE = "jemo-v4";
+const CACHE = "jemo-v5";
 const SHELL = ["./", "index.html", "core.js", "app.js", "logo.png", "icon-180.png", "manifest.webmanifest"];
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))));
 self.addEventListener("activate", (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))));
